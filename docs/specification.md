@@ -188,7 +188,7 @@ PX(t1, t2) = 1 / PY (t1, t1)
 A contract in the periphery may want to reward liquidity miners for staking their positions by distributing
 some token `R` at a constant `rate` per second while the position is active.
 
-In order to do this, when the user stakes their position, the contract may use the `snapshotCumulativesInside` view entrypoint
+In order to do this, when the user stakes their position, the contract may use the `snapshot_cumulatives_inside` view entrypoint
 to obtain `seconds_per_liquidity_cumulative_t0` and keep a record of it.
 
 Later, when the user unstakes their position, the contract calls the same view entrypoint once more to obtain
@@ -199,5 +199,397 @@ where `position_liquidity` is the amount of liquidity provided by the user's pos
 rate * position_liquidity * (seconds_per_liquidity_cumulative_t1 - seconds_per_liquidity_cumulative_t0)
 ```
 
+# Configuration
+
+This contract relies on some constants and known external conditions which can
+differ between instantiations.
+
+To accomodate this, configuration options are given at compile-time, which means
+that:
+- to make different choices a new compilation is required
+- a contract cannot change these choices after deployment
+
+## Compilation options
+
+- `admin` `address`, activates the admin role and its entrypoints, allowing this
+  address to transfer the protocol fees collected by the CFMM.
+  See [Administration entrypoints](administration-entrypoints) for more info.
+- `X` token contract type, can be chosen between
+  [`FA1.2`](https://gitlab.com/tezos/tzip/-/blob/master/proposals/tzip-7/tzip-7.md)
+  and [`FA2`](https://gitlab.com/tezos/tzip/-/blob/master/proposals/tzip-12/tzip-12.md).
+- `Y` token contract type, can be chosen between
+  [`FA1.2`](https://gitlab.com/tezos/tzip/-/blob/master/proposals/tzip-7/tzip-7.md)
+  and [`FA2`](https://gitlab.com/tezos/tzip/-/blob/master/proposals/tzip-12/tzip-12.md).
+- `swap_fee`, a fraction determining how much of the tokens sent in a swap will
+  be subtracted beforehand, see [fees](#fees) for more info.
+- `protocol_fee`, a fraction determining how much of the `swap_fee` will be kept
+  for by the contract itself instead of being transferred to the LP, see
+  [fees](#fees) for more info.
+
+# Entrypoints
+
+## Standard FA2 entrypoints
+
+Entrypoints present in the [*FA2 Standard*][fa2].
+
+In the context of this contract, [positions](#positions) are NFTs and these
+entrypoints can be used to manage them.
+
+Note: this contract implements the [Default Transfer Permission Policy](https://gitlab.com/tezos/tzip/-/blob/master/proposals/tzip-12/tzip-12.md#default-transfer-permission-policy).
+
+
+### **transfer**
+
+Can be used by the `owner` or the `operator` of a [position](#positions) to
+transfer its ownership to a different address.
+
+- This entrypoint adheres to the [FA2][fa2] requirements.
+- If there is no position associated to the given `token_id`, fails with
+  `FA2_TOKEN_UNDEFINED`
+- If an `amount` is `0` it does not fail, but effectively there will be no
+  difference.
+- If any `amount` is higher than `1`, fails with `FA2_INSUFFICIENT_BALANCE`, as
+  NFTs/`position`s are unique.
+- If any transfer was not initiated by the `position` `owner` or an allowed
+  `operator`, fails with `FA2_NOT_OPERATOR`.
+
+```ocaml
+type position_id = nat
+
+type transfer_destination =
+  [@layout:comb]
+  { to_ : address
+  ; token_id : position_id
+  ; amount : nat
+  }
+
+type transfer_item =
+  [@layout:comb]
+  { from_ : address
+  ; txs : transfer_destination list
+  }
+
+type transfer_params = transfer_item list
+```
+
+### **balance_of**
+
+This can be used by another contract to query the ownership of a [position](#positions).
+
+- This entrypoint adheres to the [FA2][fa2] requirements.
+- If the given `owner` does not own the given `position_id`, the returned `balance`
+  will be `0`, otherwise it will be `1`.
+
+```ocaml
+type position_id = nat
+
+type balance_request_item =
+  [@layout:comb]
+  { owner : address
+  ; token_id : position_id
+  }
+
+type balance_response_item =
+  [@layout:comb]
+  { request : balance_request_item
+  ; balance : nat
+  }
+
+type balance_request_params =
+  [@layout:comb]
+  { requests : balance_request_item list
+  ; callback : balance_response_item list contract
+  }
+```
+
+### **update_operators**
+
+Updates (adds or removes) `operator`s of a [position](#positions) for the
+specified token `owner`.
+
+- This entrypoint adheres to the [FA2][fa2] requirements.
+- If two different updates change the same `operator` for the same
+  `owner` and `position`, the last update will take effect.
+- Operators can be updated for for an `owner` that does not yet own the given
+  `position`.
+
+```ocaml
+type position_id = nat
+
+type operator_param =
+  [@layout:comb]
+  { owner : address
+  ; operator : address
+  ; token_id : position_id
+  }
+
+type update_operator =
+  [@layout:comb]
+  | Add_operator of operator_param
+  | Remove_operator of operator_param
+
+type update_operators_param = update_operator list
+```
+
+
+## Administration entrypoints
+
+Note: these entrypoints are optional and will only be included in the contract
+if such [configuration](#configuration) choice was made at origination.
+
+The `admin` role, if any, can unilaterally transfer the tokens that the contract
+has collected with the protocol [fee](#fees), both in `X` and `Y`.
+
+This role is **unique** and can only be held by one address at any given time.
+
+### **transfer_admin**
+
+The current `admin` can call this entrypoint to begin transferring this role to
+a new `admin` candidate, [`confirm_admin`](#confirm_admin) needs to be
+called by the latter to complete the transfer.
+
+- If the `SENDER` is not the `admin`, fails with `NOT_ADMIN`.
+- The current `admin` retains his privileges until `confirm_admin` is called.
+- If there is an existing `admin` candidate, calling this again will set a new
+  candidate for the role.
+- Calling this with the current `admin`'s address will invalidate the current
+  `admin` candidate.
+
+```ocaml
+type transfer_admin_param = address
+```
+
+
+### **confirm_admin**
+
+Can be called by the current `admin` candidate (if any) to complete the transfer
+of the role, following `transfer_admin`.
+
+- The current `admin` canditate acquires the `admin` role.
+- If the sender is not the current `admin` candidate or there is no current
+  candidate, fails with `NOT_ADMIN_CANDIDATE`.
+- If no admin candidate is set, the current `admin` can call this entrypoint
+  without failures.
+
+```ocaml
+type confirm_admin_param = unit
+```
+
+
+### **transfer_protocol_fees**
+
+The contract `admin` can call this entrypoint to transfer protocol [fees](#fees)
+accrued during [swaps](#swaps).
+
+FA1.2 or FA2 `transfer`s (depending on [configuration](#configuration)) will be
+made by the contract towards the chosen `receiver`, for an amount of `X` and `Y`
+tokens _up to_ the specified values.
+
+- If the `SENDER` is not the `admin`, fails with `NOT_ADMIN`.
+- If the value of `max_amount_x` and/or `max_amount_y` is `0` no `transfer` will
+  be made for the respective token.
+- If the accrued fees are more than the `max_amount_x` and/or `max_amount_y`
+  the amount `transfer`red will be capped for the respective token.
+- The contract for the `X` or `Y` tokens are expected to fail if any condition
+  for the `transfer` isn't met.
+
+```ocaml
+type transfer_protocol_fees_param =
+  { receiver : address
+  ; max_amount_x : nat
+  ; max_amount_y : nat
+  }
+```
+
+
+## CFMM-specific entrypoints
+
+### **X_to_Y**
+
+Perform a token [swap](#swaps) from `X` to `Y`.
+
+Note: in order to be able to perform a swap, this contract must be made an
+`operator` or be `approve`d (depending if `X` is an FA1.2 or FA2 contract) to
+`transfer` the requested amount of tokens.
+
+- The `dx` amount of tokens `X` is `transfer`ed from the `SENDER` account to
+  this contract's.
+- The [fees](#fees) are subtracted from this amount and given to the LP and
+  the contract.
+- If the swap is no longer acceptable because the `deadline` was not met, fails
+  with `TIMED_OUT`.
+- If less than `min_dy` amount of token `Y` would be obtained from the swap, fails
+  with `UNDER_MIN`.
+- If the swap is successful, the computed converted `Y` tokens will be `transfer`red
+  to the `to_dy` account
+
+```ocaml
+type x_to_y_param = {
+    dx : nat ;
+    deadline : timestamp ;
+    min_dy : nat ;
+    to_dy : address ;
+}
+```
+
+
+### **Y_to_X**
+
+Perform a token [swap](#swaps) from `Y` to `X`.
+
+Note: in order to be able to perform a swap, this contract must be made an
+`operator` or be `approve`d (depending if `Y` is an FA1.2 or FA2 contract) to
+`transfer` the requested amount of tokens.
+
+- The `dy` amount of tokens `Y` is `transfer`ed from the `SENDER` account to
+  this contract's.
+- The [fees](#fees) are subtracted from this amount and given to the LP and
+  the contract.
+- If the swap is no longer acceptable because the `deadline` was not met, fails
+  with `TIMED_OUT`.
+- If less than `min_dx` amount of token `X` would be obtained from the swap, fails
+  with `UNDER_MIN`.
+- If the swap is successful, the computed converted `X` tokens will be `transfer`red
+  to the `to_dx` account
+
+```ocaml
+type y_to_x_param = {
+    dy : nat ;
+    deadline : timestamp ;
+    min_dx : nat ;
+    to_dx : address ;
+}
+```
+
+
+### **X_to_X_prime**
+
+Perform a token [swap](#swaps) across two Segmented-CFMM, from this contract's
+`X` to the other's `X` (hereby called `X_prime`).
+
+This entrypoint allows one to make a swap between two tokens that aren't directly
+in a pair, but both of which are paired with the same `Y`.
+
+Note: in order to be able to perform a swap, this contract must be made an
+`operator` or be `approve`d (depending if `X` is an FA1.2 or FA2 contract) to
+`transfer` the requested amount of tokens.
+
+- The `dx` amount of tokens `X` is `transfer`ed from the `SENDER` account to
+  this contract's.
+- The [fees](#fees) are subtracted from this amount and given to the LP and
+  the contract.
+- If the swap is no longer acceptable because the `deadline` was not met, fails
+  with `TIMED_OUT`.
+- Instead of completing the single swap, the `x_prime_contract` will be called.
+- If less than `min_dx_prime` amount of token `X_prime` would be obtained from
+  the swap second swap, `x_prime_contract` is expected to fail with `UNDER_MIN`.
+- If the swap is successful, the computed converted `X_prime` tokens are expected
+  to be `transfer`red by the `x_prime_contract` to the `to_dx_prime` account.
+
+```ocaml
+type x_to_x_prime_param = {
+    dx : nat ;
+    x_prime_contract : y_to_x_param contract ;
+    deadline : timestamp ;
+    min_dx_prime : nat ;
+    to_dx_prime : address ;
+}
+```
+
+
+### **Set_position**
+
+Updates or creates a new [position](#positions) in the given range.
+
+
+- `i_l` determines the lowest tick index in which this position will be active.
+- `i_u` determines the highest tick index in which this position will be active.
+- `i_l_l` is a witness (already initialized tick) index lower than `i_l`.
+  It should be as close as possible to `i_l`, for efficiency.
+- `i_u_l` is a witness (already initialized tick) index lower than `i_u`.
+  It should be as close as possible to `i_u`, for efficiency.
+- The liquidity of the `SENDER` will be updated by `delta_liquidity`, increased
+  or decreased depending on the sign, for both tokens of the pair.
+- In case, after adding eventual accrued fees, the `delta_liquidity` is:
+  * positive in `X` and/or `Y`: this amount will be `transfer`red **from** the `SENDER`
+  * negative in `X`: this amount will be `transfer`red **to** `to_x`
+  * negative in `Y`: this amount will be `transfer`red **to** `to_y`
+
+```ocaml
+type set_position_param = {
+    i_l : tick_index ;
+    i_u : tick_index ;
+    i_l_l : tick_index ;
+    i_u_l : tick_index ;
+    delta_liquidity : int ;
+    to_x : address ;
+    to_y : address ;
+}
+```
+
+
+### **snapshot_cumulatives_inside**
+
+Oracle `view` for a snapshot of the tick cumulative, seconds per liquidity and
+seconds inside the given range.
+
+- `i_l` determines the lowest tick index of the range.
+- `i_u` determines the highest tick index of the range.
+- the `callback` contract will be called with the computed values.
+- `tick_cumulative_inside` is the computed snapshot of the tick cumulative for
+  the given range.
+- `seconds_per_liquidity_inside` is the computed snapshot of the seconds per
+  liquidity for the given range.
+- `seconds_inside` is the computed snapshot of the seconds for the given range.
+
+```ocaml
+type sci_view_param = {
+    tick_cumulative_inside : int ;
+    seconds_per_liquidity_inside : nat ;
+    seconds_inside : nat ;
+}
+
+type sci_param = {
+    i_l : tick_index ;
+    i_u : tick_index ;
+    callback : sci_view_param contract ;
+}
+```
+
+
+### **observe**
+
+Oracle `view` for the cumulative tick and liquidity-in-range, calculated for each
+`timestamp`s in a list.
+
+- each value in `times` will be used to calculate a `cumulative_entry`.
+  The order of the computed entries is the same as that of the given `timestamp`s.
+- the `callback` contract will be called with the computed values.
+- for each `timestamp`/`cumulative_entry` pair:
+  * `tick_cumulative` is the cumulative tick value at that `timestamp`.
+  * `seconds_per_liquidity_cumulative` is the cumulative seconds per
+    liquidity-in-range at that `timestamp`.
+
+```ocaml
+type cumulative_entry = {
+    tick_cumulative : int ;
+    seconds_per_liquidity_cumulative : nat ;
+}
+
+type oracle_view_param = cumulative_entry list
+
+type observe_param = {
+    times : timestamp list ;
+    callback : oracle_view_param contract ;
+}
+```
+
+# Errors
+
+TODO: to account for all validation and internal errors, a complete list will be
+provided during the implementation of the contract.
+
+
  [uniswap-v3]: https://uniswap.org/whitepaper-v3.pdf
  [spot-price]: https://www.investopedia.com/terms/s/spotprice.asp
+ [fa2]: https://uniswap.org/whitepaper-v3.pdf
