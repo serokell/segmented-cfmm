@@ -3,6 +3,7 @@
 
 name: segmented-cfmm-snapshot
 
+
 resolver: lts-17.3
 
 packages:
