@@ -30,10 +30,11 @@ and is capable of managing a pool of any two FA1.2/FA2 tokens.
 This CFMM uses a _function_ to ensure that, after every swap, the product of the
 reserves `x` and `y` is always equal to some _constant_ `k`, i.e., `x * y = k`.
 
-For example, say `k = 15600`, and our pool contains 1560 `x` tokens and 10 `y` tokens,
+For example, say `k = 15600`, and LPs provide liquidity (see [Positions](#positions))
+such that our pool contains 1560 `x` tokens and 10 `y` tokens,
 satisfying the `x * y = k` requirement.
 
-If a user sells 3 `y` tokens, the pool's `y` reserves would increase to 13.
+If a user sells 3 `y` tokens (see [Swaps](#swaps)), the pool's `y` reserves would increase to 13.
 Since the product of the reserves must remain equal to `k` at all times, it follows that the `x`
 reserves must now be `x = k / y = 15600 / 13 = 1200`.
 Thus, the user would get `1560 - 1200 = 360` `x` tokens in exchange for their 3 `y` tokens.
@@ -41,6 +42,8 @@ Thus, the user would get `1560 - 1200 = 360` `x` tokens in exchange for their 3 
 A constant product ensures that the price of an asset goes up or down according to demand.
 The more a token's reserves are depleted, the more expensive it'll be for a user to buy more of those tokens.
 If a user were to sell 3 more `y` tokens, they would now receive _only_ `x - (k / y) = 1200 - (15600 / 16) = 225` `x` tokens.
+
+In exchange for their contribution, LPs are rewarded with [fees subtracted from every swap](#fees).
 
 ## Positions
 
@@ -77,6 +80,13 @@ This reward is proportional to:
 Both the swap fee and the governance fee percentages are initialized when the contract is
 originated and immutable thereafter.
 
+## Oracle
+
+TODO
+
+## Liquidity Mining
+
+TODO
 
 
  [uniswap-v3]: https://uniswap.org/whitepaper-v3.pdf
