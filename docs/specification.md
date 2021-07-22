@@ -88,7 +88,41 @@ within a tick interval with higher liquidity.
 
 ## Swaps
 
-TODO
+Users may call the `x_to_y` or `y_to_x` entrypoints to swap their `x` or `y` tokens, respectively.
+
+A tick is said to be _initialized_ if it is currently being used as a bound of a position,
+or _uninitialized_ otherwise.
+
+In the example above, we have two positions.
+Position `p1` ranges from `p(0)` to `p(4)`, and `p2` from `p(2)` to `p(6)`.
+
+```
+                             p2
+                  _______________________
+                 |                       |
+... p(0)  p(1)  p(2)  p(3)  p(4)  p(5)  p(6)  ...
+     |_______________________|
+                 p1
+```
+
+The ticks `p(0)`, `p(2)`, `p(4)` and `p(6)` are initialized,
+while the remaining are uninitialized.
+
+When a swap is initiated, the contract will first attempt to convert as many tokens as possible
+with the liquidity available inbetween the two initialized ticks nearest to the current price.
+
+For example, if the current price is `p(1)`, then the contract will convert as many tokens
+as possible using position `p1`'s liquidity alone.
+
+While swapping inbetween two initialized ticks, the contract acts a constant product formula.
+using the liquidity provided by all the positions active within that interval.
+
+Once the price crosses an initialized tick, then the right amount of liquidity is
+added to/removed from the calculations.
+
+For example, when the price moves from `p(1)` to `p(2)`, we start taking position `p2`'s
+liquidity into account.
+When it moves from `p(3)` to `p(4)`, we stop taking `p1`'s liquidity into account.
 
 ## Fees
 
