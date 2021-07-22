@@ -47,7 +47,43 @@ In exchange for their contribution, LPs are rewarded with [fees subtracted from 
 
 ## Positions
 
-TODO
+At any given time, in a pool of two tokens `x` and `y`, the [_spot price_][spot-price] of `y` can range from 0
+(when the pool contains only `y` tokens) to ∞ (when the pool contains only `x` tokens).
+
+However, in most cases, the price of a token will almost always be within a certain range.
+For example, in a pool of 2 stablecoins pegged to the same currency,
+we might expect the price to always stay within the range [0.99, 1.01].
+
+In such a scenario, the `x` and `y` reserves would almost always remain very close to each other.
+This means that most of the pool's tokens would never actually be used.
+
+As such, instead of allocating their tokens to the entire [0, ∞] range, LPs can concentrate
+their liquidity in a specific, narrower range.
+
+In order to do this, we split the price spectrum [0, ∞] in slices, each slice bound by two _ticks_.
+For any integer `i` (the _tick index_), there is a tick at the price `p(i) = 1.0001^i`.
+
+```
+0, ..., 0.99980002999, 0.99990000999, 1, 1.0001, 1.00020001, ..., ∞
+```
+
+LPs can create a _position_ (that is, allocate their liquidity inbetween two tick indices)
+by calling the `set_position` entrypoint.
+
+When the spot price is within a position's range, that position is said to be _active_.
+The LP will earn fees taken from every swap that occurs while their position is active.
+
+Once the spot price moves outside the range (because the tokens in that position
+have all been converted to either `x` or `y`), the position will become _inactive_,
+and will not accrue any fees until is becomes active again.
+
+---
+
+This partitioning system has some implications.
+
+In particular, some slices may have more liquidity than others, which means
+the spot price will swing more easily while within a slice with low liquidity than
+within a slice with higher liquidity.
 
 ## Swaps
 
