@@ -159,3 +159,4 @@ TODO
 
 
  [uniswap-v3]: https://uniswap.org/whitepaper-v3.pdf
+ [spot-price]: https://www.investopedia.com/terms/s/spotprice.asp
