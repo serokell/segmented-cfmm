@@ -109,13 +109,11 @@ The ticks `p(0)`, `p(2)`, `p(4)` and `p(6)` are initialized,
 while the remaining are uninitialized.
 
 When a swap is initiated, the contract will first attempt to convert as many tokens as possible
-with the liquidity available inbetween the two initialized ticks nearest to the current price.
+with the liquidity available up to the nearest initialized tick.
+While swapping inbetween two initialized ticks, the contract acts a constant product formula.
 
 For example, if the current price is `p(1)`, then the contract will convert as many tokens
 as possible using position `p1`'s liquidity alone.
-
-While swapping inbetween two initialized ticks, the contract acts a constant product formula.
-using the liquidity provided by all the positions active within that interval.
 
 Once the price crosses an initialized tick, then the right amount of liquidity is
 added to/removed from the calculations.
