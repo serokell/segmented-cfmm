@@ -45,6 +45,9 @@ If a user were to sell 3 more `y` tokens, they would now receive _only_ `x - (k 
 
 In exchange for their contribution, LPs are rewarded with [fees subtracted from every swap](#fees).
 
+This contract also exposes on-chain view entrypoints for implementing [price oracles](#price-oracle)
+and [liquidity mining programs](#liquidity-mining).
+
 ## Positions
 
 At any given time, in a pool of two tokens `x` and `y`, the [_spot price_][spot-price] of `y` can range from 0
@@ -149,9 +152,38 @@ This reward is proportional to:
 Both the swap fee and the governance fee percentages are initialized when the contract is
 originated and immutable thereafter.
 
-## Oracle
+## Price Oracle
 
-TODO
+Conceptually, at every block level, the contract will calculate a cumulative sum
+of the _current tick index_ `ic` since the contract's inception.
+
+At any point in time `t`, the acumulator `a(t)` is equal to:
+
+```
+a(t) = ic(0) + ic(1) + ... + ic(t)
+```
+
+The contract will take a checkpoint of the current `a(t)` and store it.
+It is capable of holding up to ??? <!-- TODO --> checkpoints,
+with new checkpoints overriding the oldest.
+
+Contracts in the periphery may use the ??? <!-- TODO --> view entrypoint
+to implement a price oracle.
+
+To compute the time-weighted geometric mean price of the `y` token between two times `t1` and `t2`,
+the price oracle contract may take the accumulator's value at both of those times (`a(t1)` and `a(t2)`),
+and apply the following formula:
+
+```
+PY(t1, t2) = 1.0001 ^ ( a(t2) - a(t1) / t2 - t1 )
+```
+
+To compute the time-weighted geometric mean price of the `x` token,
+we simply calculate the reciprocal of `PY`:
+
+```
+PX(t1, t2) = 1 / PY (t1, t1)
+```
 
 ## Liquidity Mining
 
