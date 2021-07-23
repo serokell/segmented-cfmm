@@ -163,12 +163,10 @@ At any point in time `t`, the acumulator `a(t)` is equal to:
 a(t) = ic(0) + ic(1) + ... + ic(t)
 ```
 
-The contract will take a checkpoint of the current `a(t)` and store it.
-It is capable of holding up to ??? <!-- TODO --> checkpoints,
-with new checkpoints overriding the oldest.
+The contract will take a checkpoint of the current `a(t)` and store it in a `big_map`.
 
 Contracts in the periphery may use the ??? <!-- TODO --> view entrypoint
-to implement a price oracle.
+to retrieve these checkpoints and implement a price oracle.
 
 To compute the time-weighted geometric mean price of the `y` token between two times `t1` and `t2`,
 the price oracle contract may take the accumulator's value at both of those times (`a(t1)` and `a(t2)`),
