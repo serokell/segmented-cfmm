@@ -157,23 +157,23 @@ originated and immutable thereafter.
 Conceptually, at every block level, the contract will calculate a cumulative sum
 of the _current tick index_ `ic` since the contract's inception.
 
-At any point in time `t`, the acumulator `a(t)` is equal to:
+At any point in time `t`, the acumulator `tick_cumulative(t)` is equal to:
 
 ```
-a(t) = ic(0) + ic(1) + ... + ic(t)
+tick_cumulative(t) = ic(0) + ic(1) + ... + ic(t)
 ```
 
-The contract will take a checkpoint of the current `a(t)` and store it in a `big_map`.
+The contract will take a checkpoint of the current `tick_cumulative(t)` and store it in a `big_map`.
 
-Contracts in the periphery may use the ??? <!-- TODO --> view entrypoint
+Contracts in the periphery may use the `observe` view entrypoint
 to retrieve these checkpoints and implement a price oracle.
 
 To compute the time-weighted geometric mean price of the `y` token between two times `t1` and `t2`,
-the price oracle contract may take the accumulator's value at both of those times (`a(t1)` and `a(t2)`),
+the price oracle contract may call `oracle [t1, t2]` to obtain `tick_cumulative_t1` and `tick_cumulative_t2`,
 and apply the following formula:
 
 ```
-PY(t1, t2) = 1.0001 ^ ( a(t2) - a(t1) / t2 - t1 )
+PY(t1, t2) = 1.0001 ^ ( tick_cumulative_t2 - tick_cumulative_t1 / t2 - t1 )
 ```
 
 To compute the time-weighted geometric mean price of the `x` token,
@@ -185,8 +185,19 @@ PX(t1, t2) = 1 / PY (t1, t1)
 
 ## Liquidity Mining
 
-TODO
+A contract in the periphery may want to reward liquidity miners for staking their positions by distributing
+some token `R` at a constant `rate` per second while the position is active.
 
+In order to do this, when the user stakes their position, the contract may use the `snapshotCumulativesInside` view entrypoint
+to obtain `seconds_per_liquidity_cumulative_t0` and keep a record of it.
+
+Later, when the user unstakes their position, the contract calls the same view entrypoint once more to obtain
+`seconds_per_liquidity_cumulative_t1`, and then applies the following formula to calculate how many `R` tokens to reward the user with,
+where `position_liquidity` is the amount of liquidity provided by the user's position.
+
+```
+rate * position_liquidity * (seconds_per_liquidity_cumulative_t1 - seconds_per_liquidity_cumulative_t0)
+```
 
  [uniswap-v3]: https://uniswap.org/whitepaper-v3.pdf
  [spot-price]: https://www.investopedia.com/terms/s/spotprice.asp
