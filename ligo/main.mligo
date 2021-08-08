@@ -28,7 +28,7 @@ let rec initialize_tick ((ticks, i, i_l,
             let ticks = Big_map.update i (Some {
                 prev = i_l ;
                 next = i_next ;
-                delta_liquidity = 0 ;
+                liquidity_delta = 0 ;
                 n_positions = 0n ;
                 fee_growth_outside = initial_fee_growth_outside;
                 seconds_outside = initial_seconds_outside;
@@ -84,7 +84,7 @@ let collect_fees (s : storage) (key : position_index) : storage * balance_nat =
     ({s with positions = positions}, fees)
 
 
-let set_position (s : storage) (i_l : tick_index) (i_u : tick_index) (i_l_l : tick_index) (i_u_l : tick_index) (delta_liquidity : int) (to_x : address) (to_y : address) : result =
+let set_position (s : storage) (i_l : tick_index) (i_u : tick_index) (i_l_l : tick_index) (i_u_l : tick_index) (liquidity_delta : int) (to_x : address) (to_y : address) : result =
     (* Initialize ticks if need be. *)
     let ticks = s.ticks in
     let ticks = if s.i_c >= i_l.i then
@@ -105,7 +105,7 @@ let set_position (s : storage) (i_l : tick_index) (i_u : tick_index) (i_l_l : ti
     (* Get accumulated fees for this position. *)
     let s, fees = collect_fees s position_key in
     (* Update liquidity of position. *)
-    let liquidity_new = assert_nat (position.liquidity + delta_liquidity) in
+    let liquidity_new = assert_nat (position.liquidity + liquidity_delta) in
     let position = {position with liquidity = liquidity_new} in
     (* Reference counting the positions associated with a tick *)
     let ticks = (if liquidity_new = 0n then
@@ -125,7 +125,7 @@ let set_position (s : storage) (i_l : tick_index) (i_u : tick_index) (i_l_l : ti
     (* delete the position if liquidity has fallen to 0 *)
     let position_entry : position_state option = if liquidity_new = 0n then None else Some {position with liquidity = liquidity_new} in
     let positions = Big_map.update position_key position_entry s.positions in
-    (* Compute how much should be deposited / withdrawn to change liquidity by delta_liquidity *)
+    (* Compute how much should be deposited / withdrawn to change liquidity by liquidity_delta *)
 
     (* Grab cached prices for the interval *)
     let tick_u = get_tick ticks i_u in
@@ -139,17 +139,17 @@ let set_position (s : storage) (i_l : tick_index) (i_u : tick_index) (i_l_l : ti
         (s, {
             (* If I'm adding liquidity, x will be positive, I want to overestimate it, if x I'm taking away
                 liquidity, I want to to underestimate what I'm receiving. *)
-            x = ceildiv_int (delta_liquidity * (int (Bitwise.shift_left (assert_nat (srp_u - srp_l)) 90n))) (int (srp_l * srp_u)) ;
+            x = ceildiv_int (liquidity_delta * (int (Bitwise.shift_left (assert_nat (srp_u - srp_l)) 90n))) (int (srp_l * srp_u)) ;
             y = 0})
     else if i_l.i <= s.i_c && s.i_c < i_u.i then
         (* update interval we are in, if need be ... *)
-        let s = {s with lo = if i_l.i > s.lo.i then i_l else s.lo ; liquidity = assert_nat (s.liquidity + delta_liquidity)} in
+        let s = {s with lo = if i_l.i > s.lo.i then i_l else s.lo ; liquidity = assert_nat (s.liquidity + liquidity_delta)} in
         (s, {
-            x = ceildiv_int (delta_liquidity * (int (Bitwise.shift_left (assert_nat (srp_u - s.sqrt_price)) 90n))) (int (s.sqrt_price * srp_u)) ;
-            y = shift_int (delta_liquidity * (s.sqrt_price - srp_l)) (-80)
+            x = ceildiv_int (liquidity_delta * (int (Bitwise.shift_left (assert_nat (srp_u - s.sqrt_price)) 90n))) (int (s.sqrt_price * srp_u)) ;
+            y = shift_int (liquidity_delta * (s.sqrt_price - srp_l)) (-80)
             })
     else (* i_c >= i_u *)
-        (s, {x = 0 ; y = shift_int (delta_liquidity * (srp_u - srp_l)) (-80) }) in
+        (s, {x = 0 ; y = shift_int (liquidity_delta * (srp_u - srp_l)) (-80) }) in
 
     (* Collect fees to increase withdrawal or reduce required deposit. *)
     let delta = {x = delta.x - fees.x ; y = delta.y - fees.y} in
@@ -191,6 +191,6 @@ let s = update_time_weighted_sum s in
  match p with
 | X_to_Y p -> x_to_y s p
 | Y_to_X p -> y_to_x s p
-| Set_position p -> set_position s p.i_l p.i_u p.i_l_l p.i_u_l p.delta_liquidity p.to_x p.to_y
+| Set_position p -> set_position s p.i_l p.i_u p.i_l_l p.i_u_l p.liquidity_delta p.to_x p.to_y
 | Get_time_weighted_sum contract -> get_time_weighted_sum s contract
 | X_to_X_prime _ -> (failwith "not implemented" : result) (*TODO implement iff Y is FA12 *)
