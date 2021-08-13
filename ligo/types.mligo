@@ -70,7 +70,7 @@ type tick_state = {
     *)
     seconds_per_liquidity_outside : nat ;
 
-    (* sqrt(P) associated with this tick. *)
+    (* sqrt(P) = sqrt(X/Y) associated with this tick. *)
     sqrt_price : nat
 }
 
