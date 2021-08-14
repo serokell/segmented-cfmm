@@ -723,12 +723,12 @@
           "members": [
             {
               "kind": "PropertySignature",
-              "canonicalReference": "segmented-cfmm-sdk!Set_position#liquidity_delta:member",
+              "canonicalReference": "segmented-cfmm-sdk!Set_position#liquidity_net:member",
               "docComment": "",
               "excerptTokens": [
                 {
                   "kind": "Content",
-                  "text": "liquidity_delta: "
+                  "text": "liquidity_net: "
                 },
                 {
                   "kind": "Content",
@@ -741,7 +741,7 @@
               ],
               "isOptional": false,
               "releaseTag": "Public",
-              "name": "liquidity_delta",
+              "name": "liquidity_net",
               "propertyTypeTokenRange": {
                 "startIndex": 1,
                 "endIndex": 2

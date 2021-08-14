@@ -28,7 +28,7 @@ let rec initialize_tick ((ticks, i, i_l,
             let ticks = Big_map.update i (Some {
                 prev = i_l ;
                 next = i_next ;
-                liquidity_delta = 0 ;
+                liquidity_net = 0 ;
                 n_positions = 0n ;
                 fee_growth_outside = initial_fee_growth_outside;
                 seconds_outside = initial_seconds_outside;
@@ -125,7 +125,7 @@ let set_position (s : storage) (i_l : tick_index) (i_u : tick_index) (i_l_l : ti
     (* delete the position if liquidity has fallen to 0 *)
     let position_entry : position_state option = if liquidity_new = 0n then None else Some {position with liquidity = liquidity_new} in
     let positions = Big_map.update position_key position_entry s.positions in
-    (* Compute how much should be deposited / withdrawn to change liquidity by liquidity_delta *)
+    (* Compute how much should be deposited / withdrawn to change liquidity by liquidity_net *)
 
     (* Grab cached prices for the interval *)
     let tick_u = get_tick ticks i_u in

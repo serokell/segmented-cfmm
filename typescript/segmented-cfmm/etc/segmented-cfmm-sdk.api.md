@@ -42,7 +42,7 @@ export class SegCFMMContract {
 // @public (undocumented)
 export interface Set_position {
     // (undocumented)
-    liquidity_delta: number;
+    liquidity_net: number;
     // (undocumented)
     il: number;
     // (undocumented)

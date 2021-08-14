@@ -160,8 +160,9 @@ data TickState = TickState
     -- ^ Index of the previous initialized tick.
   , tsNext :: TickIndex
     -- ^ Index of the next initialized tick.
-  , tsLiquidityDelta :: Integer
-    -- ^ Track total amount of liquidity that is added/removed.
+  , tsLiquidityNet :: Integer
+    -- ^ Track total amount of liquidity that is added/removed when
+    -- this tick is crossed.
   , tsNPosition :: Natural
     -- ^ Number of positions that cover this tick.
   , tsSecondsOutside :: Natural

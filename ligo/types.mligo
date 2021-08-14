@@ -22,13 +22,10 @@ type tick_state = {
     (* Index of the next initialized tick. *)
     next : tick_index ;
 
-    (* Total amount of liquidity change when this tick is crossed bottom to top by i_c.
-
-        TODO: use of this field is opaque. Why do we always subtract it?
-        Where is it initialized to anything except 0? (set_position does not seem to update it)
-        "bottom to top" part is just imagined ATM, it cannot be witnessed from the code yet AFAIU.
+    (* Total amount of liquidity to add to the contract's global liquidity when
+        this tick is crossed going up.
     *)
-    liquidity_delta : int ;
+    liquidity_net : int ;
 
     (* Numbers of positions covering the given tick.
         Used for garbage collection.

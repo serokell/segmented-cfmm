@@ -4,7 +4,7 @@ export interface Set_position {
   ill: number;
   iu: number;
   iul: number;
-  liquidity_delta: number;
+  liquidity_net: number;
   to_x: string;
   to_y: string;
 };
