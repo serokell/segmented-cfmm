@@ -37,7 +37,7 @@ type tick_state = {
         assuming that now i_c is also below (above) this tick.
 
         Here we assume that, during all the time since Unix epoch start till
-        the moment of tick initialization, i_c was set to -∞.
+        the moment of tick initialization, i_c was set to ∞.
 
         As example, let's say the tick was initialized at 1628440000 timestamp;
         then `seconds_outside` will be initialized with the same timestamp.
