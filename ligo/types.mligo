@@ -27,7 +27,7 @@ type tick_state = {
     *)
     liquidity_net : int ;
 
-    (* Numbers of positions covering the given tick.
+    (* Numbers of positions with an edge at the given tick.
         Used for garbage collection.
     *)
     n_positions : nat ;
@@ -119,8 +119,8 @@ type storage = {
     time_weighted_ic_sum : int ;
     (* Last time `time_weighted_ic_sum` was updated. *)
     last_ic_sum_update : timestamp ;
-    (* TODO: fill description once this field is used *)
-    seconds_per_liquidity : nat ;
+    (* Cumulative time-weighted sum of 1/L. *)
+    seconds_per_liquidity_cumulative : nat ;
 
     (* TZIP-16 metadata. *)
     metadata : metadata_map ;
@@ -134,8 +134,8 @@ type set_position_param = {
     i_u : tick_index ;
     (* Lower tick's witness calculated offchain.
 
-        Witness of tick T is some (preferrably highest) _initialized_ tick
-        with index lower or equal than of T. Finding witness in our linked
+        A witness of tick T is some (preferably highest) _initialized_ tick
+        with index lower than or equal to T. Finding a witness in our linked
         list with ticks is too expensive to be done on-chain.
     *)
     i_l_l : tick_index ;
