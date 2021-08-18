@@ -32,12 +32,16 @@ type tick_state = {
     *)
     n_positions : nat ;
 
-    (* Overall number of seconds s_o that the current tick index i_c
-        has spent below (above) this tick by the moment of the last cross with it,
-        assuming that now i_c is also below (above) this tick.
+    (* When the current tick index `i_c` is below this tick, this field tracks
+        the overall number of seconds `i_c` spent above or at this tick.
+        When `i_c` is above or equal to this tick, it tracks the number of
+        seconds `i_c` spent below this tick.
+
+        This field is updated every time `i_c` crosses this tick.
 
         Here we assume that, during all the time since Unix epoch start till
-        the moment of tick initialization, i_c was set to ∞.
+        the moment of tick initialization, i_c was below this tick
+        (see equation 6.25 of the uniswap v3 whitepaper).
 
         As example, let's say the tick was initialized at 1628440000 timestamp;
         then `seconds_outside` will be initialized with the same timestamp.
