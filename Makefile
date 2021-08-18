@@ -7,6 +7,9 @@ LIGO ?= ligo
 # Compile code
 BUILD = $(LIGO) compile-contract --syntax cameligo
 
+# Compile storage
+BUILD_STORAGE = $(LIGO) compile-storage --syntax cameligo
+
 # Where to put build files
 OUT ?= out
 
@@ -19,13 +22,19 @@ escape_double_quote = $(subst $\",$\\",$(1))
 .PHONY: all
 
 all: \
-	$(OUT)/segmented_cfmm.tz
+	$(OUT)/segmented_cfmm.tz $(OUT)/default_storage.tz
 
 # Compile LIGO contract into its michelson representation.
 $(OUT)/segmented_cfmm.tz: ligo/**
 	mkdir -p $(OUT)
 	# ============== Compiling contract ============== #
 	$(BUILD) ligo/main.mligo main --output-file $(OUT)/segmented_cfmm.tz
+
+$(OUT)/default_storage.tz :
+	mkdir -p $(OUT)
+
+	$(BUILD_STORAGE) --output-file $(OUT)/default_storage.tz \
+      ligo/main.mligo main "default_storage"
 
 
 lib: all
