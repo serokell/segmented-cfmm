@@ -45,7 +45,10 @@ data Parameter
     -- ^ TODO: Add deadline, maximum tokens contributed, and maximum liquidity present
   | X_to_X_prime Address
     -- ^ Equivalent to token_to_token
-  | Get_time_weighted_sum (ContractRef Views)
+  | Increase_observation_count Natural
+    -- ^ Set the number of stored accumulators for geometric mean price oracle.
+  | Get_time_weighted_sum (GetTimeWeightedSumMode, ContractRef Views)
+    -- ^ Get geometric mean price
 
 instance Buildable Parameter where
   build = genericF
@@ -55,6 +58,13 @@ data Views =
   IC_sum Integer
 
 instance Buildable Views where
+  build = genericF
+
+data GetTimeWeightedSumMode
+  = GetLatestTimeWeightedSum
+  | GetTimeWeightedSumAt Timestamp
+
+instance Buildable GetTimeWeightedSumMode where
   build = genericF
 
 -- | Parameter of @X_to_Y@ entrypoints
@@ -131,12 +141,9 @@ data Storage = Storage
   , sTicks :: TickMap
     -- ^ Ticks' states.
   , sPositions :: PositionMap
-    -- ^ Positions' states.
-  , sTimeWeightIcSum :: Integer
-    -- ^ Cumulative time-weighted sum of the 'sIC'.
-  , sLastIcSumUpdate :: Timestamp
-    -- ^ Last time 'sLastIcSumUpdate' was updated.
-  , sSecondsPerLiquidityCumulative :: Natural
+  , sTimeWeightedIcSums :: TimeWeightedIcSumsBuffer
+    -- ^ Stored cumulative time-weighted i_c values.
+  , sSecondsPerLiquidityCumulative :: X 128 Natural
 
   , sMetadata :: TZIP16.MetadataMap BigMap
     -- ^ TZIP-16 metadata.
@@ -230,6 +237,32 @@ instance Buildable PositionState where
 -- | Map containing Liquidity providers.
 type PositionMap = BigMap PositionIndex PositionState
 
+data TimedIcSum = TimedIcSum
+  { tisIcSum :: Integer
+  , tisTime :: Timestamp
+  }
+
+instance Buildable TimedIcSum where
+  build = genericF
+
+data TimeWeightedIcSumsBuffer = TimeWeightedIcSumsBuffer
+  { isbBuffer :: BigMap Natural TimedIcSum
+  , isbFirst :: Natural
+  , isbLast :: Natural
+  , isbReservedLength :: Natural
+  }
+
+instance Buildable TimeWeightedIcSumsBuffer where
+  build = genericF
+
+initTimeWeightedIcSumsBuffer :: Timestamp -> TimeWeightedIcSumsBuffer
+initTimeWeightedIcSumsBuffer now = TimeWeightedIcSumsBuffer
+  { isbBuffer = one (0, TimedIcSum 0 now)
+  , isbFirst = 0
+  , isbLast = 0
+  , isbReservedLength = 1
+  }
+
 -----------------------------------------------------------------
 -- Helper
 -----------------------------------------------------------------
@@ -245,6 +278,11 @@ segCfmmAnnOptions = defaultAnnOptions
 customGeneric "Views" ligoLayout
 deriving anyclass instance IsoValue Views
 instance HasAnnotation Views where
+  annOptions = segCfmmAnnOptions
+
+customGeneric "GetTimeWeightedSumMode" ligoLayout
+deriving anyclass instance IsoValue GetTimeWeightedSumMode
+instance HasAnnotation GetTimeWeightedSumMode where
   annOptions = segCfmmAnnOptions
 
 customGeneric "XToYParam" ligoLayout
@@ -289,6 +327,15 @@ deriving anyclass instance IsoValue PositionState
 instance HasAnnotation PositionState where
   annOptions = segCfmmAnnOptions
 
+customGeneric "TimedIcSum" ligoLayout
+deriving anyclass instance IsoValue TimedIcSum
+instance HasAnnotation TimedIcSum where
+  annOptions = segCfmmAnnOptions
+
+customGeneric "TimeWeightedIcSumsBuffer" ligoLayout
+deriving anyclass instance IsoValue TimeWeightedIcSumsBuffer
+instance HasAnnotation TimeWeightedIcSumsBuffer where
+  annOptions = segCfmmAnnOptions
 
 customGeneric "Storage" ligoLayout
 deriving anyclass instance IsoValue Storage

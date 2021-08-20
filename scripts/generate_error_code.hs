@@ -10,9 +10,9 @@
 -- | Script for adding new error to ligo and also update the docs.
 module GenerateErrorCode where
 
+import Data.String.Interpolate (i)
 import Prelude ()
 import Universum
-import Data.String.Interpolate (i)
 
 data ErrorItem = ErrorItem
   { eiLabel :: Text
@@ -58,9 +58,19 @@ invalidInputErrors =
       , eiDesc = "The amount of tokens that needs to be transferred to the contract is higher than `maximum_tokens_contributed`."
       }
   , ErrorItem
-      { eiLabel = "invalid_timestamp_err"
+      { eiLabel = "observe_outdated_timestamp_err"
       , eiCode = 107
       , eiDesc = "Some of the timestamps passed to the `observe` entrypoint are too far back in the past."
+      }
+  , ErrorItem
+      { eiLabel = "observe_future_timestamp_err"
+      , eiCode = 108
+      , eiDesc = "Some of the timestamps passed to the `observe` entrypoint are yet in the future."
+      }
+  , ErrorItem
+      { eiLabel = "already_observe_more_err"
+      , eiCode = 109
+      , eiDesc = "Number of stored values for observation is already larger than the number passed to `increase_ovservation_count` entrypoint."
       }
   ]
 
@@ -171,8 +181,13 @@ internalErrors =
       , eiDesc = "Thrown when `i_l.i <= s.i_c && s.i_c < i_u.i` and the `sqrt_price` happened not to grow monotonically with tick indices (This is an invariant of the contract)."
       }
   , ErrorItem
-      { eiLabel = "internal_impossible_err"
+      { eiLabel = "internal_bad_access_to_observation_buffer"
       , eiCode = 320
+      , eiDesc = "Failed to access a value in time-weighted i_c cumulative sums buffer."
+      }
+  , ErrorItem
+      { eiLabel = "internal_impossible_err"
+      , eiCode = 321
       , eiDesc = "Generic impossible error."
       }
 

@@ -170,23 +170,99 @@ let set_position (s : storage) (i_l : tick_index) (i_u : tick_index) (i_l_l : ti
 
     ([op_x ; op_y], {s with positions = positions; ticks = ticks})
 
+// Allocate slots in a buffer in [start, to_stop) indices range.
+// These slots will be filled with dummy values.
+let rec allocate_buffer_slots (ic_sums, start, to_stop : time_weighted_ic_sums_buffer * nat * nat) : time_weighted_ic_sums_buffer =
+    if start >= to_stop
+    then ic_sums
+    else
+      let new_ic_sums = {ic_sums with buffer = Big_map.add start {ic_sum = 0; time = (0 : timestamp)} ic_sums.buffer}
+      in allocate_buffer_slots(new_ic_sums, start + 1n, to_stop)
+
+// Increase number of stored ic_sum accumulators.
+let increase_observation_count (s, new_val : storage * nat) : result =
+    let ic_sums = s.time_weighted_ic_sums in
+    if ic_sums.reserved_length >= new_val
+    then (failwith already_observe_more_err : result)
+    else
+      let new_ic_sums = allocate_buffer_slots(s.time_weighted_ic_sums, ic_sums.last + 1n, ic_sums.first + ic_sums.reserved_length)
+      in (([] : operation list), {s with time_weighted_ic_sums = new_ic_sums})
+
+let get_time_weighted_ic_value_unsafe (ic_sums : time_weighted_ic_sums_buffer) (i : nat) : timed_ic_sum =
+    match Big_map.find_opt i ic_sums.buffer with
+        | None -> (failwith internal_bad_access_to_observation_buffer : timed_ic_sum)
+        | Some v -> v
+
+let get_last_time_weighted_ic_value (ic_sums : time_weighted_ic_sums_buffer) : timed_ic_sum =
+    get_time_weighted_ic_value_unsafe ic_sums ic_sums.last
+
+let rec get_time_weighted_ic_value_at_iter (ic_sums, t, l_i, r_i, l_v, r_v : time_weighted_ic_sums_buffer * timestamp * nat * nat * timed_ic_sum * timed_ic_sum) : int =
+    // Binary search, invariant: buffer[l].time <= t && t < buffer[r].time
+    if l_i + 1n < r_i
+    then
+      let m_i = ceildiv (l_i + r_i) 2n in
+      let m_v = get_time_weighted_ic_value_unsafe ic_sums m_i in
+      if m_v.time > t
+      then get_time_weighted_ic_value_at_iter (ic_sums, t, l_i, m_i, l_v, m_v)
+      else get_time_weighted_ic_value_at_iter (ic_sums, t, m_i, r_i, m_v, r_v)
+    else
+      // Between two adjacent registered values ic_sum grows linearly (since i_c stays constant),
+      // interpolating to get the value in-between.
+      ceildiv_int ((t - l_v.time) * r_v.ic_sum + (r_v.time - t) * l_v.ic_sum) (r_v.time - l_v.time)
+
+let get_time_weighted_ic_value_at (ic_sums, t : time_weighted_ic_sums_buffer * timestamp) : int =
+    let l_i = ic_sums.first in
+    let r_i = ic_sums.last in
+    let l_v = get_time_weighted_ic_value_unsafe ic_sums l_i in
+    let r_v = get_time_weighted_ic_value_unsafe ic_sums r_i in
+
+    if t < l_v.time then (failwith observe_outdated_timestamp_err : int) else
+    if t > r_v.time then (failwith observe_future_timestamp_err : int) else
+    get_time_weighted_ic_value_at_iter (ic_sums, t, l_i, r_i, l_v, r_v)
 
 type views =
     | IC_sum of int
 
-let get_time_weighted_sum (s : storage) (c : views contract) : result =
-    ([Tezos.transaction (IC_sum s.time_weighted_ic_sum) 0mutez c], s)
+let get_time_weighted_sum (s : storage) (m : get_time_weighted_sum_mode) (c : views contract) : result =
+    let ic_sum = match m with
+        | Get_latest_time_weighted_sum ->
+            let value = get_last_time_weighted_ic_value s.time_weighted_ic_sums
+            in value.ic_sum
+        | Get_time_weighted_sum_at t ->
+            get_time_weighted_ic_value_at (s.time_weighted_ic_sums, t)
+        in
+    ([Tezos.transaction (IC_sum ic_sum) 0mutez c], s)
 
 type parameter =
 | X_to_Y of x_to_y_param
 | Y_to_X of y_to_x_param
 | Set_position of set_position_param (* TODO add deadline, maximum tokens contributed, and maximum liquidity present *)
 | X_to_X_prime of address (* equivalent to token_to_token *)
-| Get_time_weighted_sum of views contract
+| Increase_observation_count of nat
+| Get_time_weighted_sum of (get_time_weighted_sum_mode * views contract)
 
 let update_time_weighted_sum (s : storage) : storage =
-    let new_sum = s.time_weighted_ic_sum + (Tezos.now - s.last_ic_sum_update) * s.cur_tick_index.i
-    in {s with time_weighted_ic_sum = new_sum ; last_ic_sum_update = Tezos.now}
+    let ic_sums = s.time_weighted_ic_sums in
+
+    let last_value = get_last_time_weighted_ic_value ic_sums in
+    (* Update not more often than once per block *)
+    if last_value.time = Tezos.now then s
+    else
+        let new_sum = last_value.ic_sum + (Tezos.now - last_value.time) * s.cur_tick_index.i in
+        let new_last = ic_sums.last + 1n in
+        let new_value = { ic_sum = new_sum; time = Tezos.now } in
+        let new_first =
+            if ic_sums.last - ic_sums.first < ic_sums.reserved_length - 1
+            // preserve the oldest element if reserves allow this
+            then ic_sums.first else ic_sums.first + 1n in
+
+        let is_sums = {
+            buffer = Big_map.add new_last new_value ic_sums.buffer ;
+            last = new_last ;
+            first = new_first ;
+            reserved_length = ic_sums.reserved_length ;
+        }
+        in {s with time_weighted_ic_sums = is_sums}
 
 let main ((p, s) : parameter * storage) : result =
 (* start by updating the time weighted price oracle *)
@@ -196,5 +272,6 @@ let s = update_time_weighted_sum s in
 | X_to_Y p -> x_to_y s p
 | Y_to_X p -> y_to_x s p
 | Set_position p -> set_position s p.lower_tick_index p.upper_tick_index p.lower_tick_witness p.upper_tick_witness p.liquidity_delta p.to_x p.to_y
-| Get_time_weighted_sum contract -> get_time_weighted_sum s contract
+| Get_time_weighted_sum p -> get_time_weighted_sum s p.0 p.1
 | X_to_X_prime _ -> (failwith "not implemented" : result) (*TODO implement iff Y is FA12 *)
+| Increase_observation_count n -> increase_observation_count(s, n)

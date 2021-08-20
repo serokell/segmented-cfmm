@@ -36,7 +36,13 @@
 [@inline] let high_tokens_err = 106n
 
 (* Some of the timestamps passed to the `observe` entrypoint are too far back in the past. *)
-[@inline] let invalid_timestamp_err = 107n
+[@inline] let observe_outdated_timestamp_err = 107n
+
+(* Some of the timestamps passed to the `observe` entrypoint are yet in the future. *)
+[@inline] let observe_future_timestamp_err = 108n
+
+(* Number of stored values for observation is already larger than the number passed to `increase_ovservation_count` entrypoint. *)
+[@inline] let already_observe_more_err = 109n
 
 
 
@@ -110,8 +116,11 @@
 (* Thrown when `i_l.i <= s.i_c && s.i_c < i_u.i` and the `sqrt_price` happened not to grow monotonically with tick indices (This is an invariant of the contract). *)
 [@inline] let internal_sqrt_price_grow_err_2 = 319n
 
+(* Failed to access a value in time-weighted i_c cumulative sums buffer. *)
+[@inline] let internal_bad_access_to_observation_buffer = 320n
+
 (* Generic impossible error. *)
-[@inline] let internal_impossible_err = 320n
+[@inline] let internal_impossible_err = 321n
 
 
 

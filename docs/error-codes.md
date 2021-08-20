@@ -26,7 +26,9 @@ Here is a summary of all the error codes thrown by the contract.
 | 104 | `smaller_than_min_asset_err` | Threshold on amount of bought tokens violated: `dx` received < `min_dx` or `dy` received < `min_dy`. |
 | 105 | `tick_not_exist_err` | User provided tick is not initialized. |
 | 106 | `high_tokens_err` | The amount of tokens that needs to be transferred to the contract is higher than `maximum_tokens_contributed`. |
-| 107 | `invalid_timestamp_err` | Some of the timestamps passed to the `observe` entrypoint are too far back in the past. |
+| 107 | `observe_outdated_timestamp_err` | Some of the timestamps passed to the `observe` entrypoint are too far back in the past. |
+| 108 | `observe_future_timestamp_err` | Some of the timestamps passed to the `observe` entrypoint are yet in the future. |
+| 109 | `already_observe_more_err` | Number of stored values for observation is already larger than the number passed to `increase_ovservation_count` entrypoint. |
 
 
 #### Contract Configuration Error Codes
@@ -60,6 +62,7 @@ Here is a summary of all the error codes thrown by the contract.
 | 317 | `internal_317` | Thrown when `(fee_growth_inside.y - position.fee_growth_inside_last.y)` is not nat. |
 | 318 | `internal_sqrt_price_grow_err_1` | Thrown when `s.i_c < i_l.i` and the `sqrt_price` happened not to grow monotonically with tick indices (This is an invariant of the contract). |
 | 319 | `internal_sqrt_price_grow_err_2` | Thrown when `i_l.i <= s.i_c && s.i_c < i_u.i` and the `sqrt_price` happened not to grow monotonically with tick indices (This is an invariant of the contract). |
-| 320 | `internal_impossible_err` | Generic impossible error. |
+| 320 | `internal_bad_access_to_observation_buffer` | Failed to access a value in time-weighted i_c cumulative sums buffer. |
+| 321 | `internal_impossible_err` | Generic impossible error. |
 
 

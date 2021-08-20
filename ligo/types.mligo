@@ -106,6 +106,47 @@ type position_map = (position_index, position_state) big_map
 // TZIP-16 metadata map
 type metadata_map = (string, bytes) big_map
 
+type timed_ic_sum = { ic_sum : int; time : timestamp }
+
+// Extendable ring buffer with time-weighted geometric mean price.
+type time_weighted_ic_sums_buffer = {
+    // For each index this stores:
+    // 1. Sum of tick indices for every second in the history of the contract
+    //    till specific moment of time.
+    // 2. Timestamp when this sum was registered.
+    //    This allows for bin search by timestamp and for interpolation.
+    //
+    // Invariants:
+    // a. The set of indices that have an associated element with them is continuous;
+    // b. Timestamps in values grow strictly monotonically (as well as `ic_sum`s ofc);
+    buffer : (nat, timed_ic_sum) big_map ;
+
+    // Index of the oldest stored value.
+    first : nat ;
+
+    // Index of the most recently stored value.
+    last : nat ;
+
+    // Number of actually allocated slots.
+    //
+    // This value is normally equal to `last - first`.
+    // However, in case recently there was a request to extend the set of
+    // stored values, this var will keep the demanded number of stored values,
+    // while values in the map past `last` will be initialized with garbage.
+    //
+    // We need to have initialized slots with trash because when the size of
+    // the map increases, someone has to pay for the storage diff.
+    // And we want it to be payed by the one who requested the extension.
+    reserved_length : nat ;
+}
+
+let init_time_weighted_ic_sums_buffer (now : timestamp) : time_weighted_ic_sums_buffer =
+    { buffer = Big_map.literal [(0n, { ic_sum = 0; time = now })]
+    ; first = 0n
+    ; last = 0n
+    ; reserved_length = 1n
+    }
+
 type storage = {
     (* Virtual liquidity, the value L for which the curve locally looks like x * y = L^2. *)
     liquidity : nat ;
@@ -135,15 +176,11 @@ type storage = {
 
     (* States of positions (with non-zero liquidity). *)
     positions : position_map ;
-
-    (* Cumulative time-weighted sum of the i_c.
+    (* Cumulative time-weighted sums of i_c. Only some recent values are stored.
         This is needed to evaluate time weighted geometric mean price
         over various time periods.
     *)
-    time_weighted_ic_sum : int ;
-
-    (* Last time `time_weighted_ic_sum` was updated. *)
-    last_ic_sum_update : timestamp ;
+    time_weighted_ic_sums : time_weighted_ic_sums_buffer ;
 
     (* Cumulative time-weighted sum of 1/L. *)
     seconds_per_liquidity_cumulative : x128n ;
@@ -206,6 +243,10 @@ type y_to_x_param = {
 }
 
 type y_to_x_rec_param = x_to_y_rec_param
+
+type get_time_weighted_sum_mode
+    = Get_latest_time_weighted_sum
+    | Get_time_weighted_sum_at of timestamp
 
 type result = (operation list) * storage
 
