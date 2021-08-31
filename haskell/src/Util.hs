@@ -4,6 +4,7 @@
 -- | Read a contract at compile time.
 module Util
   ( fetchContract
+  , fetchValue
   ) where
 
 import Universum
@@ -14,7 +15,7 @@ import Language.Haskell.TH.Syntax (qAddDependentFile)
 import qualified Language.Haskell.TH.Syntax as TH
 import System.Environment (lookupEnv)
 
-import Michelson.Runtime.Import (readContract)
+import Michelson.Runtime.Import (readContract, readValue)
 import Michelson.Typed
 
 -- | Read a contract at compile time assuming its expected type is known.
@@ -58,3 +59,24 @@ resolveSourcePath
   -> m FilePath
 resolveSourcePath defaultPath envKey =
   fromMaybe defaultPath <$> liftIO (lookupEnv envKey)
+
+-- | Reads a Michelson expression into a known typed value at compile type.
+fetchValue :: forall st. KnownIsoT st => FilePath -> String -> TH.ExpQ
+fetchValue defaultPath envKey = do
+  path <- resolveSourcePath defaultPath envKey
+  valueLiteral <- readDependentSource path
+  verifiedFetchedValue @st valueLiteral
+
+verifiedFetchedValue :: forall st. KnownIsoT st => Text -> TH.ExpQ
+verifiedFetchedValue valueLiteral =
+  case readValue @(ToT st) "" valueLiteral of
+    Left e ->
+      -- Emit a compiler error if the value cannot be read.
+      fail (pretty e)
+    Right _ ->
+      -- Emit a haskell expression that reads the value.
+      [|
+        -- Note: it's ok to use `error` here, because we just proved that the
+        -- value can be parsed+typechecked.
+        either (error . pretty) fromVal $ readValue "" valueLiteral
+      |]

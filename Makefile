@@ -7,6 +7,9 @@ LIGO ?= ligo
 # Compile code
 BUILD = $(LIGO) compile-contract --syntax cameligo
 
+# Compile storage
+BUILD_STORAGE = $(LIGO) compile-storage --syntax cameligo
+
 # Where to put build files
 OUT ?= out
 
@@ -30,19 +33,39 @@ define build_ligo
 	$(foreach CVAR,$(3),$(file >>$(TOTAL_FILE),#define $(CVAR)))
 	@echo "#include \"$(notdir $(1))\"" >> $(TOTAL_FILE)
 
-	# ============== Compiling `$(1)` with options `$(3)` ============== #
+	# ============== Compiling Ligo Contract `$(1)` with options `$(3)` ============== #
 	@$(BUILD) $(TOTAL_FILE) main --output-file $(2) || ( rm $(TOTAL_FILE) && exit 1 )
 	@rm $(TOTAL_FILE)
 endef
 
+define build_ligo_storage
+	@mkdir -p $(dir $(2))
+
+	@ #Create a file and put necessary #define pragmas to it first
+	$(eval TOTAL_FILE := $(shell mktemp $(1).total-XXX))
+	$(foreach CVAR,$(3),$(file >>$(TOTAL_FILE),#define $(CVAR)))
+	@echo "#include \"$(notdir $(1))\"" >> $(TOTAL_FILE)
+
+	# ============== Compiling Ligo Storage `$(1)` with options `$(3)` ============== #
+	@$(BUILD_STORAGE) $(TOTAL_FILE) main default_storage --output-file $(2) || ( rm $(TOTAL_FILE) && exit 1 )
+	@rm $(TOTAL_FILE)
+endef
+
 all: \
-	$(OUT)/segmented_cfmm_default.tz
+	$(OUT)/segmented_cfmm_default.tz $(OUT)/storage_default.tz
 
 $(OUT)/segmented_cfmm_default.tz : LIGO_PRAGMAS = DUMMY_PRAGMA1 DUMMY_PRAGMA2
 
 # Generic rule for compiling CFMM contract variations.
 $(OUT)/segmented_cfmm_%.tz: $(shell find ligo -name '*.mligo')
 	$(call build_ligo,ligo/main.mligo,$(OUT)/segmented_cfmm_$*.tz,$(LIGO_PRAGMAS))
+
+
+$(OUT)/storage_default.tz : LIGO_PRAGMAS = DUMMY_PRAGMA1 DUMMY_PRAGMA2
+
+$(OUT)/storage_%.tz: ligo/**
+	$(call build_ligo_storage,ligo/main.mligo,$(OUT)/storage_$*.tz,$(LIGO_PRAGMAS))
+
 
 lib: all
 	$(MAKE) -C haskell build PACKAGE=segmented-cfmm \
@@ -69,12 +92,14 @@ error-codes:
 
 test: all
 	$(MAKE) -C haskell test PACKAGE=segmented-cfmm \
-		SEGMENTED_CFMM_PATH=../$(OUT)/segmented_cfmm_default.tz
+		SEGMENTED_CFMM_PATH=../$(OUT)/segmented_cfmm_default.tz \
+		STORAGE_PATH=../$(OUT)/storage_default.tz
 
 typescript: all
 	$(MAKE) -C haskell build PACKAGE=segmented-cfmm \
 		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn" \
-		SEGMENTED_CFMM_PATH=../$(OUT)/segmented_cfmm_default.tz
+		SEGMENTED_CFMM_PATH=../$(OUT)/segmented_cfmm_default.tz	\
+		STORAGE_PATH=../$(OUT)/storage_default.tz
 
 	rm -rf $(TS_OUT)/segmented-cfmm/src/generated/*
 	stack exec -- segmented-cfmm generate-typescript --target=$(TS_OUT)/segmented-cfmm/src/generated/
