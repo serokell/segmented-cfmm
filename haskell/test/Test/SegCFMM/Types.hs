@@ -19,7 +19,6 @@ import Test.SegCFMM.Storage
 unit_ContractTypesMatch :: Assertion
 unit_ContractTypesMatch = evaluateNF_ @(Contract _ _) segCFMMContract
 
+-- TODO: Removed when `defaultStorage` is used in the tests.
 unit_StorageTypesMatch :: Assertion
-unit_StorageTypesMatch = do
-  let !(_ :: Storage) = defaultStorage
-  pure ()
+unit_StorageTypesMatch = void $ pure (defaultStorage :: Storage)
