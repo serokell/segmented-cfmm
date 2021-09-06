@@ -13,3 +13,4 @@ import Util (fetchValue)
 defaultStorage :: Storage
 defaultStorage =
   fromVal ($(fetchValue @Storage "haskell/test/storage_default.tz" "STORAGE_PATH"))
+

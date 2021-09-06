@@ -19,7 +19,7 @@ TS_OUT ?= typescript
 # Utility function to escape double quotes
 escape_double_quote = $(subst $\",$\\",$(1))
 
-.PHONY: all lib metadata error-codes test typescript clean
+.PHONY: all prepare_lib lib metadata error-codes test typescript clean
 
 # Builds LIGO contract. Arguments:
 #   1: The source file
@@ -63,7 +63,7 @@ $(OUT)/segmented_cfmm_%.tz: $(shell find ligo -name '*.mligo')
 
 $(OUT)/storage_default.tz : LIGO_PRAGMAS = DUMMY_PRAGMA1 DUMMY_PRAGMA2
 
-$(OUT)/storage_%.tz: ligo/**
+$(OUT)/storage_%.tz: $(shell find ligo -name '*.mligo')
 	$(call build_ligo_storage,ligo/main.mligo,$(OUT)/storage_$*.tz,$(LIGO_PRAGMAS))
 
 prepare_lib: all
@@ -96,15 +96,21 @@ error-codes:
 	stack scripts/generate_error_code.hs
 
 test: prepare_lib
-	$(MAKE) -C haskell test PACKAGE=segmented-cfmm
+	$(MAKE) -C haskell test PACKAGE=segmented-cfmm \
+		SEGMENTED_CFMM_PATH=../haskell/test/segmented_cfmm_default.tz \
+		STORAGE_PATH=../haskell/test/storage_default.tz
 
 typescript: prepare_lib
 	$(MAKE) -C haskell build PACKAGE=segmented-cfmm \
-		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn"
+		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn" \
+		SEGMENTED_CFMM_PATH=../haskell/test/segmented_cfmm_default.tz \
+		STORAGE_PATH=../haskell/test/storage_default.tz
 
 	rm -rf $(TS_OUT)/segmented-cfmm/src/generated/*
 	stack exec -- segmented-cfmm generate-typescript --target=$(TS_OUT)/segmented-cfmm/src/generated/
 
 clean:
 	rm -rf $(OUT)
+	rm haskell/test/segmented_cfmm_default.tz
+	rm haskell/test/storage_default.tz
 	$(MAKE) -C haskell clean
