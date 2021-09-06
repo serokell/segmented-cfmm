@@ -66,8 +66,13 @@ $(OUT)/storage_default.tz : LIGO_PRAGMAS = DUMMY_PRAGMA1 DUMMY_PRAGMA2
 $(OUT)/storage_%.tz: ligo/**
 	$(call build_ligo_storage,ligo/main.mligo,$(OUT)/storage_$*.tz,$(LIGO_PRAGMAS))
 
+prepare_lib: all
+	# ============== Copying ligo sources to haskell lib paths ============== #
+	mkdir -p haskell/test
+	cp $(OUT)/segmented_cfmm_default.tz haskell/test/segmented_cfmm_default.tz
+	cp $(OUT)/storage_default.tz haskell/test/storage_default.tz
 
-lib: all
+lib: prepare_lib
 	$(MAKE) -C haskell build PACKAGE=segmented-cfmm \
 		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn"
 
@@ -78,7 +83,7 @@ metadata : y_token_symbol = y
 metadata : y_token_name = "Token Y"
 metadata : y_token_decimals = 1
 metadata : output = metadata.json
-metadata: lib all
+metadata: lib
 	$(MAKE) -C haskell exec PACKAGE=segmented-cfmm \
 		EXEC_ARGUMENTS="print-metadata \
 		--x-token-symbol $(x_token_symbol) --x-token-name $(call escape_double_quote,$(x_token_name)) \
@@ -90,16 +95,12 @@ metadata: lib all
 error-codes:
 	stack scripts/generate_error_code.hs
 
-test: all
-	$(MAKE) -C haskell test PACKAGE=segmented-cfmm \
-		SEGMENTED_CFMM_PATH=../$(OUT)/segmented_cfmm_default.tz \
-		STORAGE_PATH=../$(OUT)/storage_default.tz
+test: prepare_lib
+	$(MAKE) -C haskell test PACKAGE=segmented-cfmm
 
-typescript: all
+typescript: prepare_lib
 	$(MAKE) -C haskell build PACKAGE=segmented-cfmm \
-		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn" \
-		SEGMENTED_CFMM_PATH=../$(OUT)/segmented_cfmm_default.tz	\
-		STORAGE_PATH=../$(OUT)/storage_default.tz
+		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn"
 
 	rm -rf $(TS_OUT)/segmented-cfmm/src/generated/*
 	stack exec -- segmented-cfmm generate-typescript --target=$(TS_OUT)/segmented-cfmm/src/generated/
