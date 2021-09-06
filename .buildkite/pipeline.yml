@@ -1,6 +1,12 @@
 # SPDX-FileCopyrightText: 2021 Arthur Breitman
 # SPDX-License-Identifier: LicenseRef-MIT-Arthur-Breitman
 
+env:
+  FETCH_CONTRACT: >-
+    mkdir -p haskell/test/
+    && buildkite-agent artifact download ligo-out/storage_default.tz haskell/test/
+    && buildkite-agent artifact download ligo-out/segmented_cfmm_default.tz haskell/test/
+
 steps:
   - label: hlint
     commands:
@@ -36,7 +42,10 @@ steps:
 
   - label: build-haskell
     key: build-haskell
+    depends_on:
+      - build-ligo
     commands:
+    - eval "$FETCH_CONTRACT"
     - nix-build ci.nix -A all-components
 
   - label: check typescript api

@@ -96,15 +96,11 @@ error-codes:
 	stack scripts/generate_error_code.hs
 
 test: prepare_lib
-	$(MAKE) -C haskell test PACKAGE=segmented-cfmm \
-		SEGMENTED_CFMM_PATH=../haskell/test/segmented_cfmm_default.tz \
-		STORAGE_PATH=../haskell/test/storage_default.tz
+	$(MAKE) -C haskell test PACKAGE=segmented-cfmm
 
 typescript: prepare_lib
 	$(MAKE) -C haskell build PACKAGE=segmented-cfmm \
-		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn" \
-		SEGMENTED_CFMM_PATH=../haskell/test/segmented_cfmm_default.tz \
-		STORAGE_PATH=../haskell/test/storage_default.tz
+		STACK_DEV_OPTIONS="--fast --ghc-options -Wwarn"
 
 	rm -rf $(TS_OUT)/segmented-cfmm/src/generated/*
 	stack exec -- segmented-cfmm generate-typescript --target=$(TS_OUT)/segmented-cfmm/src/generated/
