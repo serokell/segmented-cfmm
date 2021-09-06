@@ -12,5 +12,6 @@ import Util (fetchValue)
 
 defaultStorage :: Storage
 defaultStorage =
-  fromVal ($(fetchValue @Storage "test/storage_default.tz" "STORAGE_PATH"))
-
+  fromVal ($(fetchValue @Storage "haskell/test/storage_default.tz" "STORAGE_PATH"))
+                              -- ↑ This default path works on CI.
+                              -- There it's relative to the repo root, apparently.
