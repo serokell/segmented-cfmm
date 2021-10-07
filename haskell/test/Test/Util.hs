@@ -20,6 +20,12 @@ module Test.Util
   , mapToListReverse
   -- * FA2 helpers
   , balanceOf
+  , balancesOf
+  , updateOperator
+  , updateOperators
+  , transferToken
+  , transferToken'
+  , transferTokens
   -- * Other utils
   , divUp
   ) where
@@ -30,7 +36,7 @@ import qualified Data.Map as Map
 import Fmt (Buildable(build), GenericBuildable(..), indentF, unlinesF, (+|), (|+))
 import Hedgehog hiding (assert, failure)
 import qualified Indigo.Contracts.FA2Sample as FA2
-import Lorentz hiding (assert)
+import Lorentz hiding (assert, map, transferTokens)
 import qualified Lorentz.Contracts.Spec.FA2Interface as FA2
 import Lorentz.Test (contractConsumer)
 import Morley.Nettest
@@ -189,22 +195,86 @@ deriveManyRPC "FA2.BalanceResponseItem" []
 deriving via (GenericBuildable BalanceRequestItemRPC) instance Buildable BalanceRequestItemRPC
 deriving via (GenericBuildable BalanceResponseItemRPC) instance Buildable BalanceResponseItemRPC
 
--- | Retrieve the FA2 balance for a given account.
+-- | Retrieve the FA2 balance for a given account and token.
 balanceOf
-  :: (HasCallStack, MonadNettest caps base m, ToAddress addr)
-  => ContractHandler FA2.FA2SampleParameter storage -> FA2.TokenId -> addr -> m Natural
-balanceOf fa2 tokenId account = do
-  consumer <- originateSimple "balance-response-consumer" [] (contractConsumer @[FA2.BalanceResponseItem])
-  call fa2 (Call @"Balance_of") (FA2.mkFA2View [FA2.BalanceRequestItem (toAddress account) tokenId] consumer)
-  consumerStorage <- getStorage consumer
+  :: (HasCallStack, MonadNettest caps base m, ToAddress addr, FA2.ParameterC param)
+  => ContractHandler param storage -> FA2.TokenId -> addr -> m Natural
+balanceOf fa2 tokenId account = balancesOf fa2 [tokenId] account >>= \case
+  [bal] -> return bal
+  bals  -> failure $ unlinesF
+    [ "Expected consumer storage to have exactly 1 item in its balance response."
+    , "Balance response items:"
+    , indentF 2 $ build bals
+    ]
 
-  case consumerStorage of
-    [[BalanceResponseItemRPC _ bal]] -> pure bal
-    _ -> failure $ unlinesF
-          [ "Expected consumer storage to have exactly 1 balance response, with exactly 1 item."
-          , "Consumer storage:"
-          , indentF 2 $ build consumerStorage
-          ]
+-- | Retrieve the FA2 balances for a given account and tokens.
+balancesOf
+  :: (HasCallStack, MonadNettest caps base m, ToAddress addr, FA2.ParameterC param)
+  => ContractHandler param storage -> [FA2.TokenId] -> addr -> m [Natural]
+balancesOf fa2 tokenIds account = do
+  consumer <- originateSimple "balance-response-consumer" [] (contractConsumer @[FA2.BalanceResponseItem])
+  call fa2 (Call @"Balance_of") (FA2.mkFA2View (map (FA2.BalanceRequestItem (toAddress account)) tokenIds) consumer)
+  getStorage consumer >>= \case
+    [bals] -> pure $ map (\(BalanceResponseItemRPC _ bal) -> bal) bals
+    consumerStorage -> failure $ unlinesF
+      [ "Expected consumer storage to have exactly 1 balance response."
+      , "Consumer storage:"
+      , indentF 2 $ build consumerStorage
+      ]
+
+-- | Update a single operator for an FA2 contract.
+updateOperator
+  :: (HasCallStack, MonadNettest caps base m, FA2.ParameterC param)
+  => ContractHandler param storage
+  -> Address     -- ^ owner
+  -> Address     -- ^ operator
+  -> FA2.TokenId -- ^ token id
+  -> Bool        -- ^ operation: 'True' to add, 'False' to remove
+  -> m ()
+updateOperator fa2 opOwner opOperator opTokenId doAdd = do
+  let opParam = FA2.OperatorParam{..}
+      updOperation = if doAdd then FA2.AddOperator else FA2.RemoveOperator
+  updateOperators fa2 [updOperation opParam]
+
+-- | Update operators for an FA2 contract.
+updateOperators
+  :: (HasCallStack, MonadNettest caps base m, FA2.ParameterC param)
+  => ContractHandler param storage
+  -> FA2.UpdateOperatorsParam
+  -> m ()
+updateOperators fa2 operatorUpdates =
+  call fa2 (Call @"Update_operators") operatorUpdates
+
+-- | Transfer one token, in any amount, in an FA2 contract.
+transferToken
+  :: (HasCallStack, MonadNettest caps base m, FA2.ParameterC param)
+  => ContractHandler param storage
+  -> Address     -- ^ source
+  -> Address     -- ^ destination
+  -> FA2.TokenId -- ^ token id
+  -> Natural     -- ^ amount
+  -> m ()
+transferToken fa2 tiFrom tdTo tdTokenId tdAmount = do
+  let tiTxs = [FA2.TransferDestination{..}]
+  transferTokens fa2 [FA2.TransferItem{..}]
+
+-- | Transfer a single token, also in amount, in an FA2 contract.
+transferToken'
+  :: (HasCallStack, MonadNettest caps base m, FA2.ParameterC param)
+  => ContractHandler param storage
+  -> Address     -- ^ source
+  -> Address     -- ^ destination
+  -> FA2.TokenId -- ^ token id
+  -> m ()
+transferToken' fa2 tiFrom tdTo tdTokenId = transferToken fa2 tiFrom tdTo tdTokenId 1
+
+-- | Transfer tokens in an FA2 contract.
+transferTokens
+  :: (HasCallStack, MonadNettest caps base m, FA2.ParameterC param)
+  => ContractHandler param storage
+  -> FA2.TransferParams
+  -> m ()
+transferTokens fa2 transferParams = call fa2 (Call @"Transfer") transferParams
 
 ----------------------------------------------------------------------------
 -- Other utils
