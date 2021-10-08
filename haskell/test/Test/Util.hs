@@ -14,6 +14,7 @@ module Test.Util
   -- * Segmented CFMM helpers
   , originateSegCFMM
   , prepareSomeSegCFMM
+  , prepareSomeSegCFMM'
   , mkDeadline
   , advanceSecs
   , mapToList
@@ -69,9 +70,9 @@ evalJust = \case
 -- FA2 helpers
 ----------------------------------------------------------------------------
 
-simpleFA2Storage :: (Address, FA2.TokenId) -> FA2.Storage
-simpleFA2Storage rich = FA2.Storage
-  { sLedger = mkBigMap [ (rich, 100000) ]
+simpleFA2Storage :: [Address] -> FA2.TokenId -> FA2.Storage
+simpleFA2Storage addresses tokenId = FA2.Storage
+  { sLedger = mkBigMap $ map (\addr -> ((addr,tokenId), 100000)) addresses
   , sOperators = mempty
   , sTokenMetadata = mempty
   }
@@ -97,11 +98,20 @@ prepareSomeSegCFMM
   -> m ( ContractHandler CFMM.Parameter CFMM.Storage
        , (FA2Token, FA2Token)
        )
-prepareSomeSegCFMM liquidityProvider = do
+prepareSomeSegCFMM liquidityProvider = prepareSomeSegCFMM' [liquidityProvider]
+
+-- | Like 'prepareSomeSegCFMM' but accepts multiple (or no) liquidity providers.
+prepareSomeSegCFMM'
+  :: MonadNettest caps base m
+  => [Address]
+  -> m ( ContractHandler CFMM.Parameter CFMM.Storage
+       , (FA2Token, FA2Token)
+       )
+prepareSomeSegCFMM' liquidityProviders = do
   let xTokenId = FA2.TokenId 0
   let yTokenId = FA2.TokenId 1
-  let xFa2storage = simpleFA2Storage (liquidityProvider, xTokenId)
-  let yFa2storage = simpleFA2Storage (liquidityProvider, yTokenId)
+  let xFa2storage = simpleFA2Storage liquidityProviders xTokenId
+  let yFa2storage = simpleFA2Storage liquidityProviders yTokenId
   xToken <- originateSimple "fa2-X" xFa2storage
     (FA2.fa2Contract def { FA2.cAllowedTokenIds = [xTokenId] })
   yToken <- originateSimple "fa2-Y" yFa2storage
@@ -117,9 +127,10 @@ prepareSomeSegCFMM liquidityProvider = do
         }
   cfmm <- originateSegCFMM FA2 FA2 initialSt
 
-  withSender liquidityProvider do
-    call xToken (Call @"Update_operators") [FA2.AddOperator $ FA2.OperatorParam liquidityProvider (toAddress cfmm) xTokenId]
-    call yToken (Call @"Update_operators") [FA2.AddOperator $ FA2.OperatorParam liquidityProvider (toAddress cfmm) yTokenId]
+  forM_ liquidityProviders $ \lp ->
+    withSender lp do
+      call xToken (Call @"Update_operators") [FA2.AddOperator $ FA2.OperatorParam lp (toAddress cfmm) xTokenId]
+      call yToken (Call @"Update_operators") [FA2.AddOperator $ FA2.OperatorParam lp (toAddress cfmm) yTokenId]
 
   return
     ( cfmm
