@@ -5,17 +5,11 @@ module Test.FA2.Common
   ( setSimplePosition
   ) where
 
-import Prelude
-
-import qualified Indigo.Contracts.FA2Sample as FA2
 import Lorentz hiding (assert, map, not, now, (>>))
-import qualified Lorentz.Contracts.Spec.FA2Interface as FA2
 import Morley.Nettest
 
 import SegCFMM.Types
-import Test.SegCFMM.Contract (TokenType (..))
-import Test.SetPosition (mkStorage)
-import Test.Util (mkDeadline, originateSegCFMM)
+import Test.Util (mkDeadline)
 
 -- | Utility function to make a simple call to @Set_position@ between the two
 -- given 'TickIndex'.
