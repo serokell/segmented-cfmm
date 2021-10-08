@@ -45,7 +45,7 @@ test_FA2_positions =
     clevelandProp do
       -- may own some positions and operate others from the next owner
       ownerAndOperator <- newAddress auto
-      -- may own some positions, some of which operated by the previous
+      -- may own some positions, some of which operated by the 'ownerAndOperator'
       ownerOnly <- newAddress auto
       -- may own some position and eventually will own all of them
       finalOwner <- newAddress auto
