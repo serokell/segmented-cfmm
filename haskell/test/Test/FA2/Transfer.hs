@@ -98,6 +98,11 @@ test_owner_transfer =
     withSender owner $ transferToken' cfmm owner receiver (FA2.TokenId 0)
     balanceOf cfmm (FA2.TokenId 0) owner @@== 0
     balanceOf cfmm (FA2.TokenId 0) receiver @@== 1
+    -- check that previous owner can no longer manage the position ...
+    expectCustomError #fA2_INSUFFICIENT_BALANCE (#required .! 1, #present .! 0) $
+      withSender owner $ transferToken' cfmm owner receiver (FA2.TokenId 0)
+    -- ... but the new one can
+    withSender receiver $ transferToken' cfmm receiver owner (FA2.TokenId 0)
 
 test_operator_transfer :: TestTree
 test_operator_transfer =
