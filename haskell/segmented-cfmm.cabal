@@ -194,6 +194,7 @@ test-suite segmented-cfmm-test
       Test.SegCFMM.Contract
       Test.SegCFMM.Storage
       Test.SegCFMM.Types
+      Test.Stress
       Test.Util
       Test.XToY
       Test.YToX
